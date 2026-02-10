@@ -21,17 +21,17 @@ A powerful async tool for searching and downloading files from GitLab repositori
 
 ## Installation
 
-### Using pipx (recommended)
+### Global install (recommended)
 
-[pipx](https://pipx.pypa.io/) installs the tool in an isolated environment and makes it globally available:
+[uv](https://docs.astral.sh/uv/) installs the tool in an isolated environment and makes it globally available:
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd glab-search-code
 
-# Install globally with pipx
-pipx install .
+# Install globally with uv
+uv tool install .
 
 # Now you can use it from anywhere
 glab-search-code 'your-search-query' --hostname gitlab.example.com
@@ -39,15 +39,15 @@ glab-search-code 'your-search-query' --hostname gitlab.example.com
 
 To upgrade after making changes:
 ```bash
-pipx upgrade glab-search-code
+uv tool upgrade glab-search-code
 ```
 
 To uninstall:
 ```bash
-pipx uninstall glab-search-code
+uv tool uninstall glab-search-code
 ```
 
-### Using uv (for development)
+### For development
 
 ```bash
 # Clone the repository
@@ -59,20 +59,6 @@ uv sync
 
 # Run directly
 uv run glab-search-code 'your-search-query' --hostname gitlab.example.com
-```
-
-### Using pip
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd glab-search-code
-
-# Install the package
-pip install .
-
-# Run the tool
-glab-search-code 'your-search-query' --hostname gitlab.example.com
 ```
 
 ## Usage
