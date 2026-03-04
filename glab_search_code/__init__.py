@@ -114,6 +114,7 @@ class GitLabSearcher:
         workers: int = 10,
         max_retries: int = 3,
         retry_delay: int = 2,
+        verbose: bool = False,
     ):
         # Timestamp in directory name prevents accidental overwrites when running
         # multiple searches, and sanitizing ensures filesystem compatibility.
@@ -122,6 +123,7 @@ class GitLabSearcher:
         self.workers = workers
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.verbose = verbose
         self.is_interactive = is_interactive_terminal()
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -161,6 +163,10 @@ class GitLabSearcher:
         else:
             print(message)
 
+    def _verbose(self, message: str):
+        if self.verbose:
+            print(f"{Colors.YELLOW}[verbose]{Colors.NC} {message}", file=sys.stderr)
+
     async def run_glab(self, *args) -> tuple[str, str, int]:
         # Async subprocess allows parallel GitLab API calls without blocking threads.
         # Returning all three values (stdout, stderr, code) enables proper error handling
@@ -171,11 +177,24 @@ class GitLabSearcher:
             glab_args.extend(["--hostname", self.hostname])
         glab_args.extend(args)
 
+        self._verbose(f"exec: {' '.join(glab_args)}")
+
         proc = await asyncio.create_subprocess_exec(
             *glab_args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await proc.communicate()
-        return stdout.decode(), stderr.decode(), proc.returncode
+        stdout_str, stderr_str = stdout.decode(), stderr.decode()
+
+        if self.verbose:
+            self._verbose(f"  exit code: {proc.returncode}")
+            if stderr_str.strip():
+                for line in stderr_str.strip().splitlines():
+                    self._verbose(f"  stderr: {line}")
+            stdout_preview = stdout_str[:500]
+            if stdout_preview.strip():
+                self._verbose(f"  stdout: {stdout_preview}{'...' if len(stdout_str) > 500 else ''}")
+
+        return stdout_str, stderr_str, proc.returncode
 
     async def search_all(self) -> list[dict]:
         # Using --paginate is essential for large result sets (>100 files) as it
@@ -205,6 +224,17 @@ class GitLabSearcher:
 
         self.log(f"Search completed: {len(results)} results")
         self.print_color(f"{Colors.GREEN}Found {len(results)} results{Colors.NC}")
+
+        if self.verbose and results:
+            projects = {}
+            for r in results:
+                pid = str(r.get("project_id", "?"))
+                projects.setdefault(pid, []).append(r.get("filename", "?"))
+            self._verbose(f"Results span {len(projects)} unique project(s)")
+            for pid, files in list(projects.items())[:10]:
+                self._verbose(f"  project {pid}: {len(files)} file(s)")
+            if len(projects) > 10:
+                self._verbose(f"  ... and {len(projects) - 10} more project(s)")
 
         return results
 
@@ -500,6 +530,9 @@ Examples:
     parser.add_argument("--hostname", required=True, help=hostname_help)
     parser.add_argument("--workers", type=int, default=10, help="Number of parallel downloads (default: 10)")
     parser.add_argument("--max-retries", type=int, default=3, help="Max retries for rate-limited requests (default: 3)")
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", default=False, help="Enable verbose output for debugging"
+    )
 
     # Custom error handling to show available hostnames when --hostname is missing
     try:
@@ -532,7 +565,11 @@ Examples:
         sys.exit(1)
 
     searcher = GitLabSearcher(
-        args.search_query, hostname=args.hostname, workers=args.workers, max_retries=args.max_retries
+        args.search_query,
+        hostname=args.hostname,
+        workers=args.workers,
+        max_retries=args.max_retries,
+        verbose=args.verbose,
     )
     await searcher.run()
 
